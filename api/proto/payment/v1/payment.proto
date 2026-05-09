@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package parkirpintar.payment.v1;
+
+option go_package = "github.com/farid/payment-service/api/proto/payment/v1;paymentv1";
+
+import "google/protobuf/timestamp.proto";
+
+service PaymentService {
+  rpc CreateQrisIntent (CreateQrisIntentRequest) returns (QrisIntent);
+  rpc GetPayment       (GetPaymentRequest)       returns (Payment);
+}
+
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  PENDING = 1;
+  PAID = 2;
+  FAILED = 3;
+  REFUNDED = 4;
+}
+
+message Payment {
+  string id = 1;
+  string invoice_id = 2;
+  string method = 3;            // "QRIS"
+  PaymentStatus status = 4;
+  string pg_reference = 5;
+  int64 amount_idr = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp paid_at = 8;
+}
+
+message CreateQrisIntentRequest { string invoice_id = 1; }
+message QrisIntent {
+  string payment_id = 1;
+  string qris_payload = 2;     // EMV-QRIS string
+  string pg_reference = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message GetPaymentRequest { string id = 1; }

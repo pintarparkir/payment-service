@@ -1,0 +1,13 @@
+bin/
+vendor/
+.env
+.env.local
+*.exe
+*.test
+*.out
+coverage.html
+.idea/
+.vscode/
+.DS_Store
+data/postgres-data/
+data/rabbitmq-data/
