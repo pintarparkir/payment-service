@@ -180,6 +180,7 @@ func (x *Payment) GetPaidAt() *timestamppb.Timestamp {
 type CreateQrisIntentRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	InvoiceId     string                 `protobuf:"bytes,1,opt,name=invoice_id,json=invoiceId,proto3" json:"invoice_id,omitempty"`
+	AmountIdr     int64                  `protobuf:"varint,2,opt,name=amount_idr,json=amountIdr,proto3" json:"amount_idr,omitempty"` // caller-supplied; future: payment-service fetches from billing automatically
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -219,6 +220,13 @@ func (x *CreateQrisIntentRequest) GetInvoiceId() string {
 		return x.InvoiceId
 	}
 	return ""
+}
+
+func (x *CreateQrisIntentRequest) GetAmountIdr() int64 {
+	if x != nil {
+		return x.AmountIdr
+	}
+	return 0
 }
 
 type QrisIntent struct {
@@ -349,10 +357,12 @@ const file_api_proto_payment_v1_payment_proto_rawDesc = "" +
 	"amount_idr\x18\x06 \x01(\x03R\tamountIdr\x129\n" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x123\n" +
-	"\apaid_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x06paidAt\"8\n" +
+	"\apaid_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x06paidAt\"W\n" +
 	"\x17CreateQrisIntentRequest\x12\x1d\n" +
 	"\n" +
-	"invoice_id\x18\x01 \x01(\tR\tinvoiceId\"\xac\x01\n" +
+	"invoice_id\x18\x01 \x01(\tR\tinvoiceId\x12\x1d\n" +
+	"\n" +
+	"amount_idr\x18\x02 \x01(\x03R\tamountIdr\"\xac\x01\n" +
 	"\n" +
 	"QrisIntent\x12\x1d\n" +
 	"\n" +

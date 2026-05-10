@@ -30,7 +30,10 @@ message Payment {
   google.protobuf.Timestamp paid_at = 8;
 }
 
-message CreateQrisIntentRequest { string invoice_id = 1; }
+message CreateQrisIntentRequest {
+  string invoice_id = 1;
+  int64  amount_idr = 2;  // caller-supplied; future: payment-service fetches from billing automatically
+}
 message QrisIntent {
   string payment_id = 1;
   string qris_payload = 2;     // EMV-QRIS string
