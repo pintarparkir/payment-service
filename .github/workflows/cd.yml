@@ -54,7 +54,8 @@ jobs:
     name: Deploy to dev
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: dev
+    environment:
+      name: dev
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -96,7 +97,8 @@ jobs:
     name: Deploy to staging (canary)
     needs: smoke-dev
     runs-on: ubuntu-latest
-    environment: staging   # requires manual approval via repo Environments settings
+    environment:
+      name: staging   # requires manual approval via repo Environments settings
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -128,7 +130,8 @@ jobs:
     name: Deploy to prod (canary 10→50→100)
     needs: deploy-staging
     runs-on: ubuntu-latest
-    environment: prod      # configure 2 required reviewers via repo Environments settings
+    environment:
+      name: prod      # configure 2 required reviewers via repo Environments settings
     steps:
       - uses: google-github-actions/auth@v2
         with:
