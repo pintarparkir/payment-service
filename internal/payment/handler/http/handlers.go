@@ -8,12 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/farid/payment-service/pkg/midtrans"
+	"github.com/farid/payment-service/pkg/utils"
 )
 
 func (h *paymentHandler) createQrisIntent(c *gin.Context) {
 	var body createIntentReq
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "BAD_REQUEST", "message": err.Error()})
+		utils.Error(c, err)
 		return
 	}
 	out, err := h.uc.CreateQrisIntent(c.Request.Context(), body.InvoiceID, body.AmountIDR)
@@ -21,7 +22,7 @@ func (h *paymentHandler) createQrisIntent(c *gin.Context) {
 		renderError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, toIntentDTO(out))
+	utils.Created(c, toIntentDTO(out), "QRIS intent created")
 }
 
 func (h *paymentHandler) getPayment(c *gin.Context) {
@@ -30,7 +31,7 @@ func (h *paymentHandler) getPayment(c *gin.Context) {
 		renderError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, toPaymentDTO(out))
+	utils.OK(c, toPaymentDTO(out), "payment retrieved successfully")
 }
 
 // midtransWebhook receives the Midtrans terminal-status callback. The handler
@@ -57,8 +58,8 @@ func (h *paymentHandler) midtransWebhook(c *gin.Context) {
 
 	if err := h.uc.HandleWebhook(c.Request.Context(), n); err != nil {
 		// 5xx — Midtrans will retry. Logging happens in the usecase already.
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "INTERNAL"})
+		utils.Error(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	utils.OK(c, gin.H{"status": "ok"}, "webhook accepted")
 }
