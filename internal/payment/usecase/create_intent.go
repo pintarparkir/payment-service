@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/farid/payment-service/internal/payment/model"
@@ -38,11 +39,14 @@ func (u *paymentUsecase) CreateQrisIntent(ctx context.Context, invoiceID string,
 		return nil, &apperror.AppError{Code: "UPSTREAM_DOWN", Message: "midtrans charge failed", Cause: err}
 	}
 
-	payload, _ := json.Marshal(map[string]any{
+	payload, err := json.Marshal(map[string]any{
 		"invoice_id":   invoiceID,
 		"pg_reference": res.TransactionID,
 		"amount_idr":   amountIDR,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("payment: marshal intent payload: %w", err)
+	}
 	created, err := u.repo.Insert(ctx, &model.Payment{
 		InvoiceID:   invoiceID,
 		Method:      "QRIS",

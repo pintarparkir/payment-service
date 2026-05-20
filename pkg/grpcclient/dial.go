@@ -3,7 +3,6 @@
 package grpcclient
 
 import (
-	"context"
 	"fmt"
 
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -12,12 +11,12 @@ import (
 )
 
 // Dial returns a *grpc.ClientConn with OTel propagation + insecure transport
-// (for dev). In production, swap insecure for mTLS.
-func Dial(ctx context.Context, addr string) (*grpc.ClientConn, error) {
-	conn, err := grpc.DialContext(ctx, addr,
+// (for dev). Connection is established lazily on first call.
+// In production, swap insecure for mTLS.
+func Dial(addr string) (*grpc.ClientConn, error) {
+	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("grpc dial %s: %w", addr, err)

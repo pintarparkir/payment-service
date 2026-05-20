@@ -52,7 +52,11 @@ func main() {
 	defer stop()
 
 	otel := pkgOtel.NewOpenTelemetry(cfg.OTLPEndpoint, "payment", cfg.AppEnv)
-	defer func() { _ = otel.EndAPM() }()
+	defer func() {
+		if err := otel.EndAPM(); err != nil {
+			fmt.Fprintln(os.Stderr, "otel shutdown:", err)
+		}
+	}()
 
 	// ── Infra ────────────────────────────────────────────────────────────────
 	db, err := pgdb.NewPostgresDB(pgdb.PostgresDsn{
@@ -131,7 +135,11 @@ func main() {
 	logger.Info(context.Background(), "shutdown signal received", nil)
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = httpSrv.Shutdown(shutCtx)
+	if err := httpSrv.Shutdown(shutCtx); err != nil {
+		logger.Error(context.Background(), "http shutdown error", map[string]interface{}{logger.ErrorKey: err.Error()})
+	}
 	grpcSrv.Shutdown()
-	_ = logger.Sync()
+	if err := logger.Sync(); err != nil {
+		fmt.Fprintln(os.Stderr, "logger sync:", err)
+	}
 }

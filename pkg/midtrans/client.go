@@ -92,7 +92,7 @@ type action struct {
 }
 
 func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64) (*ChargeResult, error) {
-	body, _ := json.Marshal(chargeReq{
+	body, err := json.Marshal(chargeReq{
 		PaymentType: "qris",
 		TransactionDetails: transactionDetails{
 			OrderID:     orderID,
@@ -101,6 +101,9 @@ func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64
 		CustomExpiry: &customExpiry{Unit: "minute", ExpiryDuration: 15},
 		Qris:         &qrisOpts{Acquirer: "gopay"},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("midtrans: marshal request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/charge", bytes.NewReader(body))
 	if err != nil {
@@ -131,7 +134,10 @@ func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64
 		return nil, fmt.Errorf("midtrans: charge failed status=%s message=%s", r.StatusCode, r.StatusMessage)
 	}
 
-	exp, _ := time.Parse("2006-01-02 15:04:05", r.ExpiryTime)
+	exp, err := time.Parse("2006-01-02 15:04:05", r.ExpiryTime)
+	if err != nil {
+		exp = time.Now().Add(15 * time.Minute)
+	}
 	return &ChargeResult{
 		TransactionID: r.TransactionID,
 		QrisPayload:   r.QRString,
