@@ -5,9 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write   # required for Workload Identity Federation
+# Per-job permissions (SonarCloud: workflow-level permissions are a hotspot).
 
 env:
   GO_VERSION: '1.22'
@@ -19,6 +17,9 @@ jobs:
   build-and-push:
     name: Build & push to Artifact Registry
     runs-on: ubuntu-latest
+    permissions:
+      contents: read       # checkout
+      id-token: write      # Workload Identity Federation
     outputs:
       image: ${{ steps.image.outputs.uri }}
     steps:
@@ -54,6 +55,9 @@ jobs:
     name: Deploy to dev
     needs: build-and-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write      # Workload Identity Federation
     environment:
       name: dev
     steps:
@@ -75,6 +79,8 @@ jobs:
     name: Smoke test (dev)
     needs: deploy-dev
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Probe healthz
         run: |
@@ -97,6 +103,9 @@ jobs:
     name: Deploy to staging (canary)
     needs: smoke-dev
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write      # Workload Identity Federation
     environment:
       name: staging   # requires manual approval via repo Environments settings
     steps:
@@ -130,6 +139,9 @@ jobs:
     name: Deploy to prod (canary 10→50→100)
     needs: deploy-staging
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write      # Workload Identity Federation
     environment:
       name: prod      # configure 2 required reviewers via repo Environments settings
     steps:
