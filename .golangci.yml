@@ -1,0 +1,56 @@
+run:
+  timeout: 5m
+  go: '1.22'
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck       # unhandled errors
+    - govet          # suspicious constructs
+    - ineffassign    # ineffective assignments
+    - staticcheck    # SA* checks
+    - unused         # unused vars/funcs
+    - gosec          # SAST
+    - gofmt          # formatting
+    - goimports      # import grouping
+    - misspell       # typos in comments/strings
+    - bodyclose      # http.Response.Body not closed
+    - errorlint      # error wrapping
+    - revive         # replacement for golint
+    - nolintlint     # validate //nolint directives
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment   # cosmetic; noisy on existing structs
+  gosec:
+    excludes:
+      - G104   # subsumed by errcheck
+      - G115   # integer overflow conversions (noisy on int64<->int)
+  revive:
+    rules:
+      - name: var-naming
+      - name: exported
+        disabled: true   # too noisy for internal/* packages
+      - name: package-comments
+      - name: indent-error-flow
+      - name: superfluous-else
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+    exclude-functions:
+      - (*github.com/jmoiron/sqlx.Tx).Rollback   # deferred rollback after commit returns sql.ErrTxDone — intentional
+      - fmt.Fprintln(os.Stderr)
+      - fmt.Fprintf(os.Stderr)
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters: [gosec, errcheck, bodyclose]
+    - path: cmd/
+      linters: [revive]   # entry points often have package-level docs only in main.go

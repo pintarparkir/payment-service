@@ -1,0 +1,164 @@
+name: payment-service CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+env:
+  GO_VERSION: '1.22'
+  # vars.* / secrets.* are configured per-repo. See .github/README.md.
+  GCP_REGION: ${{ vars.GCP_REGION || 'asia-southeast2' }}
+  IMAGE_BASE: ${{ vars.GCP_REGION || 'asia-southeast2' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO || 'parkirpintar' }}/${{ github.event.repository.name }}
+
+jobs:
+  build-and-push:
+    name: Build & push to Artifact Registry
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.uri }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: image
+        run: echo "uri=${{ env.IMAGE_BASE }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+      - uses: docker/setup-buildx-action@v3
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Container vulnerability scan (Container Analysis runs server-side)
+        run: |
+          echo "Image pushed: ${{ steps.image.outputs.uri }}"
+          echo "Container Analysis scans run automatically in Artifact Registry."
+          gcloud artifacts docker images describe "${{ steps.image.outputs.uri }}" \
+            --show-package-vulnerability --format=json || echo "::warning::vuln scan not ready yet"
+
+  deploy-dev:
+    name: Deploy to dev
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy ${{ github.event.repository.name }}-dev
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ github.event.repository.name }}-dev
+          image: ${{ needs.build-and-push.outputs.image }}
+          region: ${{ env.GCP_REGION }}
+          revision_traffic: LATEST=100
+          flags: --tag=dev-${{ github.sha }}
+
+  smoke-dev:
+    name: Smoke test (dev)
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe healthz
+        run: |
+          if [ -z "${{ vars.SERVICE_URL_DEV }}" ]; then
+            echo "::warning::vars.SERVICE_URL_DEV not set — skipping HTTP probe. Cloud Run revision health check still validates startup."
+            exit 0
+          fi
+          for i in 1 2 3 4 5; do
+            if curl -fsS --max-time 10 "${{ vars.SERVICE_URL_DEV }}/healthz"; then
+              echo "smoke OK"
+              exit 0
+            fi
+            echo "attempt $i failed; retrying in 10s"
+            sleep 10
+          done
+          echo "::error::smoke probe failed after 5 attempts"
+          exit 1
+
+  deploy-staging:
+    name: Deploy to staging (canary)
+    needs: smoke-dev
+    runs-on: ubuntu-latest
+    environment: staging   # requires manual approval via repo Environments settings
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy new revision (no traffic)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ github.event.repository.name }}-staging
+          image: ${{ needs.build-and-push.outputs.image }}
+          region: ${{ env.GCP_REGION }}
+          no_traffic: true
+          flags: --tag=staging-${{ github.sha }}
+      - name: Canary 50%
+        run: |
+          gcloud run services update-traffic ${{ github.event.repository.name }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --to-tags=staging-${{ github.sha }}=50
+      - name: Observation window (10m)
+        run: sleep 600
+      - name: Promote to 100%
+        run: |
+          gcloud run services update-traffic ${{ github.event.repository.name }}-staging \
+            --region=${{ env.GCP_REGION }} \
+            --to-tags=staging-${{ github.sha }}=100
+
+  deploy-prod:
+    name: Deploy to prod (canary 10→50→100)
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: prod      # configure 2 required reviewers via repo Environments settings
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy new revision (no traffic)
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ github.event.repository.name }}-prod
+          image: ${{ needs.build-and-push.outputs.image }}
+          region: ${{ env.GCP_REGION }}
+          no_traffic: true
+          flags: --tag=prod-${{ github.sha }}
+      - name: Canary 10%
+        run: |
+          gcloud run services update-traffic ${{ github.event.repository.name }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-tags=prod-${{ github.sha }}=10
+      - name: Observation window (30m)
+        run: sleep 1800
+      - name: Canary 50%
+        run: |
+          gcloud run services update-traffic ${{ github.event.repository.name }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-tags=prod-${{ github.sha }}=50
+      - name: Observation window (1h)
+        run: sleep 3600
+      - name: Promote to 100%
+        run: |
+          gcloud run services update-traffic ${{ github.event.repository.name }}-prod \
+            --region=${{ env.GCP_REGION }} \
+            --to-tags=prod-${{ github.sha }}=100

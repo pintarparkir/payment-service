@@ -1,0 +1,121 @@
+name: payment-service CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.22'
+  GOLANGCI_LINT_VERSION: v1.59.1
+
+jobs:
+  lint:
+    name: Lint & vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: go vet
+        run: go vet ./...
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -s -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Files need gofmt -s -w:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          args: --timeout=5m
+      - name: go mod tidy drift check
+        run: |
+          go mod tidy
+          if ! git diff --exit-code go.mod go.sum; then
+            echo "::error::go.mod / go.sum drifted. Run 'go mod tidy' and commit."
+            exit 1
+          fi
+
+  test:
+    name: Unit tests + coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: go test (race + coverage)
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Coverage by package
+        run: go tool cover -func=coverage.out | tee coverage.txt
+      - name: Coverage gate (warn-only — flip to blocking after T-008 ships)
+        run: |
+          set +e
+          fail=0
+          # usecase ≥ 80%
+          usecase_avg=$(awk '/internal\/.+\/usecase\/.+\.go/ && !/_test\.go/ {gsub("%","",$3); sum+=$3; n++} END { if (n>0) printf "%.1f", sum/n; else print "" }' coverage.txt)
+          if [ -n "$usecase_avg" ]; then
+            below=$(awk -v c="$usecase_avg" 'BEGIN { print (c+0 < 80) }')
+            if [ "$below" = "1" ]; then
+              echo "::warning::usecase coverage $usecase_avg% < 80% target"
+            else
+              echo "usecase coverage OK ($usecase_avg%)"
+            fi
+          fi
+          # repo ≥ 60%
+          repo_avg=$(awk '/internal\/.+\/repository\/.+\.go/ && !/_test\.go/ {gsub("%","",$3); sum+=$3; n++} END { if (n>0) printf "%.1f", sum/n; else print "" }' coverage.txt)
+          if [ -n "$repo_avg" ]; then
+            below=$(awk -v c="$repo_avg" 'BEGIN { print (c+0 < 60) }')
+            if [ "$below" = "1" ]; then
+              echo "::warning::repository coverage $repo_avg% < 60% target"
+            else
+              echo "repository coverage OK ($repo_avg%)"
+            fi
+          fi
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: |
+            coverage.out
+            coverage.txt
+          retention-days: 7
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  build:
+    name: Docker build (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ${{ github.event.repository.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
