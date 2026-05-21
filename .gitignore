@@ -11,3 +11,4 @@ coverage.html
 .DS_Store
 data/postgres-data/
 data/rabbitmq-data/
+.github/README.md
