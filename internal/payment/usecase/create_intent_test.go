@@ -35,6 +35,24 @@ func mkPayment(id, invoiceID string, status model.PaymentStatus) *model.Payment 
 	}
 }
 
+type usecaseDeps struct {
+	ctx  context.Context
+	repo *mockrepo.MockPaymentRepository
+	mt   *mockmidtrans.MockMidtransClient
+	uc   usecase.PaymentUsecase
+}
+
+func newUsecaseDeps() usecaseDeps {
+	repo := new(mockrepo.MockPaymentRepository)
+	mt := new(mockmidtrans.MockMidtransClient)
+	return usecaseDeps{
+		ctx:  context.Background(),
+		repo: repo,
+		mt:   mt,
+		uc:   newUC(repo, mt),
+	}
+}
+
 // ── Validation ───────────────────────────────────────────────────────────────
 
 func TestCreateQrisIntent_MissingInvoiceID(t *testing.T) {
