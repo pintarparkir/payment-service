@@ -19,6 +19,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/sony/gobreaker"
 )
 
 // Client is the slice of Midtrans we depend on. Adding new operations
@@ -44,6 +46,7 @@ type httpClient struct {
 	baseURL   string
 	serverKey string
 	hc        *http.Client
+	breaker   *gobreaker.CircuitBreaker
 }
 
 // NewHTTPClient returns a Client that hits the real Midtrans endpoint.
@@ -52,6 +55,7 @@ func NewHTTPClient(baseURL, serverKey string) Client {
 		baseURL:   baseURL,
 		serverKey: serverKey,
 		hc:        &http.Client{Timeout: 10 * time.Second},
+		breaker:   newBreaker("midtrans-charge"),
 	}
 }
 
@@ -92,6 +96,16 @@ type action struct {
 }
 
 func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64) (*ChargeResult, error) {
+	result, err := c.breaker.Execute(func() (interface{}, error) {
+		return c.charge(ctx, orderID, amountIDR)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.(*ChargeResult), nil
+}
+
+func (c *httpClient) charge(ctx context.Context, orderID string, amountIDR int64) (*ChargeResult, error) {
 	body, err := json.Marshal(chargeReq{
 		PaymentType: "qris",
 		TransactionDetails: transactionDetails{
@@ -118,7 +132,7 @@ func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64
 	if err != nil {
 		return nil, fmt.Errorf("midtrans: charge: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -126,8 +140,8 @@ func (c *httpClient) Charge(ctx context.Context, orderID string, amountIDR int64
 	}
 
 	var r chargeResp
-	if err := json.Unmarshal(raw, &r); err != nil {
-		return nil, fmt.Errorf("midtrans: parse: %w (body: %s)", err, raw)
+	if unmarshalErr := json.Unmarshal(raw, &r); unmarshalErr != nil {
+		return nil, fmt.Errorf("midtrans: parse: %w (body: %s)", unmarshalErr, raw)
 	}
 	// Midtrans uses string status codes — "201" for success on /charge.
 	if resp.StatusCode >= 400 || (r.StatusCode != "201" && r.StatusCode != "200") {

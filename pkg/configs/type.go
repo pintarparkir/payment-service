@@ -16,6 +16,12 @@ type Config struct {
 	DbMaxOpen  int    `env:"DB_MAX_OPEN" envDefault:"25"`
 	DbMaxIdle  int    `env:"DB_MAX_IDLE" envDefault:"10"`
 
+	RedisHost      string `env:"REDIS_HOST" envDefault:"localhost"`
+	RedisPort      string `env:"REDIS_PORT" envDefault:"6379"`
+	RedisPassword  string `env:"REDIS_PASSWORD" envDefault:""`
+	RedisDB        int    `env:"REDIS_DB" envDefault:"0"`
+	RedisAppConfig string `env:"REDIS_APP_CONFIG" envDefault:"payment"`
+
 	RabbitURL      string `env:"RABBIT_URL" envDefault:"amqp://guest:guest@localhost:5672/"`
 	RabbitExchange string `env:"RABBIT_EXCHANGE" envDefault:"parkirpintar.events"`
 

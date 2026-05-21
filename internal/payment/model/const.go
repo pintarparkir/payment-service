@@ -1,8 +1,9 @@
+// Package model defines payment domain models and constants.
 package model
 
 // gRPC method full names (idempotency interceptor whitelist).
 const (
-	SCOPE_CREATE_QRIS_INTENT = "/parkirpintar.payment.v1.PaymentService/CreateQrisIntent"
+	ScopeCreateQrisIntent = "/parkirpintar.payment.v1.PaymentService/CreateQrisIntent"
 )
 
 // Routing keys we publish on parkirpintar.events.

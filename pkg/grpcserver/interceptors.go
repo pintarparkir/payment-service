@@ -2,6 +2,7 @@ package grpcserver
 
 import (
 	"context"
+	"errors"
 	"runtime/debug"
 	"time"
 
@@ -142,18 +143,5 @@ func mapError(err error) error {
 }
 
 func asAppError(err error, target **apperror.AppError) bool {
-	for cur := err; cur != nil; {
-		if ae, ok := cur.(*apperror.AppError); ok {
-			*target = ae
-			return true
-		}
-		// follow Unwrap chain
-		type unwrapper interface{ Unwrap() error }
-		if u, ok := cur.(unwrapper); ok {
-			cur = u.Unwrap()
-			continue
-		}
-		break
-	}
-	return false
+	return errors.As(err, target)
 }

@@ -117,3 +117,85 @@ func TestHandleWebhook_MarkSettledError(t *testing.T) {
 	require.True(t, apperror.Is(err, apperror.ErrConflict))
 	repo.AssertExpectations(t)
 }
+
+func TestHandleWebhook_FraudBlockedSettlement(t *testing.T) {
+	ctx := context.Background()
+	repo := new(mockrepo.MockPaymentRepository)
+	mt := new(mockmidtrans.MockMidtransClient)
+
+	// settlement + fraud_status=deny → not terminal success, no action
+	n := &midtrans.Notification{
+		TransactionID:     "txn-fraud",
+		OrderID:           "ord-fraud",
+		TransactionStatus: "settlement",
+		FraudStatus:       "deny",
+		GrossAmount:       "10000.00",
+	}
+
+	uc := newUC(repo, mt)
+	err := uc.HandleWebhook(ctx, n)
+
+	require.NoError(t, err)
+	repo.AssertNotCalled(t, "MarkSettled")
+}
+
+func TestHandleWebhook_IdempotentReplay(t *testing.T) {
+	ctx := context.Background()
+	repo := new(mockrepo.MockPaymentRepository)
+	mt := new(mockmidtrans.MockMidtransClient)
+
+	// Webhook arrives twice with same pg_reference. MarkSettled is idempotent:
+	// returns existing row without writing duplicate event.
+	n := &midtrans.Notification{
+		TransactionID:     "txn-replay",
+		OrderID:           "ord-replay",
+		TransactionStatus: "settlement",
+		FraudStatus:       "accept",
+		GrossAmount:       "10000.00",
+	}
+
+	existing := mkPayment("pay-replay", "ord-replay", model.PaymentPaid)
+	existing.PgReference = "txn-replay"
+	repo.On("MarkSettled", ctx, "txn-replay", model.PaymentPaid, model.EvtPaymentPaid, mock.Anything).
+		Return(existing, nil)
+
+	uc := newUC(repo, mt)
+
+	// First call
+	err := uc.HandleWebhook(ctx, n)
+	require.NoError(t, err)
+
+	// Second call (replay) — should still succeed, MarkSettled called again but returns same row
+	err = uc.HandleWebhook(ctx, n)
+	require.NoError(t, err)
+
+	// Verify MarkSettled was called twice (repo layer handles idempotency)
+	repo.AssertNumberOfCalls(t, "MarkSettled", 2)
+}
+
+func TestHandleWebhook_AlreadyTerminal(t *testing.T) {
+	ctx := context.Background()
+	repo := new(mockrepo.MockPaymentRepository)
+	mt := new(mockmidtrans.MockMidtransClient)
+
+	// Payment already PAID. Webhook arrives again with same pg_reference.
+	// MarkSettled returns existing row without writing duplicate event.
+	n := &midtrans.Notification{
+		TransactionID:     "txn-already-paid",
+		OrderID:           "ord-already-paid",
+		TransactionStatus: "settlement",
+		FraudStatus:       "accept",
+		GrossAmount:       "10000.00",
+	}
+
+	existing := mkPayment("pay-already", "ord-already-paid", model.PaymentPaid)
+	existing.PgReference = "txn-already-paid"
+	repo.On("MarkSettled", ctx, "txn-already-paid", model.PaymentPaid, model.EvtPaymentPaid, mock.Anything).
+		Return(existing, nil)
+
+	uc := newUC(repo, mt)
+	err := uc.HandleWebhook(ctx, n)
+
+	require.NoError(t, err)
+	repo.AssertExpectations(t)
+}

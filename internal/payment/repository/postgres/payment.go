@@ -46,7 +46,8 @@ func (r *paymentRepo) Insert(ctx context.Context, p *model.Payment, eventPayload
 		p.InvoiceID, "QRIS", p.PgReference, p.AmountIDR,
 	).Scan(&out.ID, &out.CreatedAt)
 	if err != nil {
-		if pgErr, ok := err.(*pq.Error); ok && string(pgErr.Code) == codeUniqueViolation {
+		var pgErr *pq.Error
+		if errors.As(err, &pgErr) && string(pgErr.Code) == codeUniqueViolation {
 			return nil, apperror.ErrConflict
 		}
 		return nil, err

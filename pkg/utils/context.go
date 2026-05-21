@@ -13,7 +13,7 @@ func IdempotencyKeyFromCtx(ctx context.Context) string {
 	if !ok {
 		return ""
 	}
-	if v := md.Get(HEADER_IDEMPOTENCY_KEY); len(v) > 0 {
+	if v := md.Get(HeaderIdempotencyKey); len(v) > 0 {
 		return v[0]
 	}
 	return ""
@@ -25,7 +25,7 @@ func DriverIDFromCtx(ctx context.Context) string {
 	if !ok {
 		return ""
 	}
-	if v := md.Get(HEADER_DRIVER_ID); len(v) > 0 {
+	if v := md.Get(HeaderDriverID); len(v) > 0 {
 		return v[0]
 	}
 	return ""
@@ -33,5 +33,5 @@ func DriverIDFromCtx(ctx context.Context) string {
 
 // CtxWithIdempotencyKey appends the key to outgoing metadata; useful for client-side calls.
 func CtxWithIdempotencyKey(ctx context.Context, key string) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, HEADER_IDEMPOTENCY_KEY, key)
+	return metadata.AppendToOutgoingContext(ctx, HeaderIdempotencyKey, key)
 }

@@ -41,6 +41,8 @@ import (
 	"github.com/farid/payment-service/pkg/midtrans"
 	pkgOtel "github.com/farid/payment-service/pkg/otel"
 	"github.com/farid/payment-service/pkg/rabbit"
+	"github.com/farid/payment-service/pkg/rate"
+	pkgRedis "github.com/farid/payment-service/pkg/redis"
 )
 
 func main() {
@@ -66,7 +68,15 @@ func main() {
 	if err != nil {
 		logger.Fatal(ctx, "postgres init failed", map[string]interface{}{logger.ErrorKey: err.Error()})
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
+
+	cache := pkgRedis.InitConnection(cfg.RedisDB, cfg.RedisHost, cfg.RedisPort, cfg.RedisPassword, cfg.RedisAppConfig)
+	if pingErr := cache.Ping(ctx); pingErr != nil {
+		logger.Warn(ctx, "redis ping failed (continuing degraded)",
+			map[string]interface{}{logger.ErrorKey: pingErr.Error()})
+	}
+
+	limiter := rate.New(cache)
 
 	pub, err := rabbit.NewPublisher(cfg.RabbitURL, cfg.RabbitExchange)
 	if err != nil {
@@ -92,7 +102,7 @@ func main() {
 	// ── gRPC server (s2s — CreateQrisIntent / GetPayment) ───────────────────
 	grpcSrv, err := grpcserver.NewGrpcServer(cfg.GrpcPort, grpcserver.Options{
 		IdempotencyStore:  idempotency.NewPostgresStore(db),
-		IdempotentMethods: []string{model.SCOPE_CREATE_QRIS_INTENT},
+		IdempotentMethods: []string{model.ScopeCreateQrisIntent},
 	})
 	if err != nil {
 		logger.Fatal(ctx, "grpc server init failed", map[string]interface{}{logger.ErrorKey: err.Error()})
@@ -116,7 +126,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery(), cors.Default())
 	router.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
-	pmthttp.RegisterPaymentHandler(router.Group("/v1"), uc, cfg.SuperAppJWTPubKey, cfg.MidtransWebhookSecret)
+	pmthttp.RegisterPaymentHandler(router.Group("/v1"), uc, cfg.SuperAppJWTPubKey, cfg.MidtransWebhookSecret, limiter)
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.AppPort,

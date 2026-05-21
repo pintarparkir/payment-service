@@ -1,3 +1,4 @@
+// Package configs provides configuration initialization and resolution.
 package configs
 
 // NewConfig is the public entry point: returns a fully-resolved Config.

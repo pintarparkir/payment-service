@@ -1,3 +1,4 @@
+// Package mockmidtrans provides mock Midtrans client for testing.
 package mockmidtrans
 
 import (

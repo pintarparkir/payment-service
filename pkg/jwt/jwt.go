@@ -52,7 +52,7 @@ func Parse(token, pubKeyPEM string) (*Claims, error) {
 		return nil, fmt.Errorf("%w: decode header", ErrMalformed)
 	}
 	var h header
-	if err := json.Unmarshal(headerBytes, &h); err != nil {
+	if unmarshalErr := json.Unmarshal(headerBytes, &h); unmarshalErr != nil {
 		return nil, fmt.Errorf("%w: header json", ErrMalformed)
 	}
 	if h.Alg != expectedAlg {
@@ -85,7 +85,7 @@ func Parse(token, pubKeyPEM string) (*Claims, error) {
 func verifyRS256(tokenString, pubKeyPEM string) error {
 	rsaPub, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(pubKeyPEM))
 	if err != nil {
-		return fmt.Errorf("%w: parse key: %v", ErrSignature, err)
+		return fmt.Errorf("%w: parse key: %w", ErrSignature, err)
 	}
 
 	parsed, err := jwtlib.Parse(tokenString, func(token *jwtlib.Token) (any, error) {

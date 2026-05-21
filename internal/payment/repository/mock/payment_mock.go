@@ -1,3 +1,4 @@
+// Package mockrepo provides mock implementations for testing.
 package mockrepo
 
 import (
