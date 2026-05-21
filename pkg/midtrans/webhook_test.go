@@ -82,10 +82,10 @@ func TestParseAndVerify_EmptyKeySkipsCheck(t *testing.T) {
 
 func TestNotification_TerminalClassification(t *testing.T) {
 	cases := []struct {
-		txStatus  string
-		fraud     string
-		wantPaid  bool
-		wantFail  bool
+		txStatus string
+		fraud    string
+		wantPaid bool
+		wantFail bool
 	}{
 		{"settlement", "accept", true, false},
 		{"capture", "accept", true, false},

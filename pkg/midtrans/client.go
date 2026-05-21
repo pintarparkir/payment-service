@@ -33,9 +33,9 @@ type Client interface {
 
 // ChargeResult mirrors the bits of Midtrans's /charge response we use.
 type ChargeResult struct {
-	TransactionID  string    // pg_reference
-	QrisPayload    string    // EMV-QRIS string (starts with 00020101...)
-	ExpiresAt      time.Time // 15 min from issue by default
+	TransactionID string    // pg_reference
+	QrisPayload   string    // EMV-QRIS string (starts with 00020101...)
+	ExpiresAt     time.Time // 15 min from issue by default
 }
 
 // ── HTTP client ──────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ type transactionDetails struct {
 	GrossAmount int64  `json:"gross_amount"`
 }
 type customExpiry struct {
-	Unit            string `json:"unit"`
-	ExpiryDuration  int    `json:"expiry_duration"`
+	Unit           string `json:"unit"`
+	ExpiryDuration int    `json:"expiry_duration"`
 }
 type qrisOpts struct {
 	Acquirer string `json:"acquirer"`

@@ -44,7 +44,9 @@ func (n *Notification) IsTerminalFailure() bool {
 }
 
 // Verify compares the signature_key in the payload against
-//   SHA-512(order_id + status_code + gross_amount + server_key)
+//
+//	SHA-512(order_id + status_code + gross_amount + server_key)
+//
 // in constant time. Returns nil on match.
 func Verify(payload []byte, serverKey string) error {
 	var n Notification

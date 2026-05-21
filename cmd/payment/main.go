@@ -6,8 +6,8 @@
 //   - Midtrans HTTP client (real or stub based on MIDTRANS_STUB_MODE)
 //   - repository, usecase
 //   - REST server: /v1/payments/qris/intent (mini app)
-//                  /v1/payments/webhook/midtrans (Midtrans callback)
-//                  /v1/payments/{id} (mini app)
+//     /v1/payments/webhook/midtrans (Midtrans callback)
+//     /v1/payments/{id} (mini app)
 //   - background outbox publisher
 //
 // gRPC server registration is conditional on the proto being generated; the

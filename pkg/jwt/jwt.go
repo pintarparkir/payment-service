@@ -114,7 +114,7 @@ func verifyRS256(signingInput, sigB64, pubKeyPEM string) error {
 	// alg-confusion attacks (e.g. `alg: none`, `alg: HS256`) are rejected
 	// before we reach this point. Algorithm choice is dictated by the upstream
 	// super-app JWT issuer and cannot be changed unilaterally. NOSONAR
-	if err := rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, h[:], sig); err != nil { //nolint:gosec
+	if err := rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, h[:], sig); err != nil { //nolint:gosec // NOSONAR
 		return ErrSignature
 	}
 

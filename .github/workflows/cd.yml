@@ -8,7 +8,7 @@ on:
 # Per-job permissions (SonarCloud: workflow-level permissions are a hotspot).
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.25.0'
   # vars.* / secrets.* are configured per-repo. See .github/README.md.
   GCP_REGION: ${{ vars.GCP_REGION || 'asia-southeast2' }}
   IMAGE_BASE: ${{ vars.GCP_REGION || 'asia-southeast2' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO || 'parkirpintar' }}/${{ github.event.repository.name }}

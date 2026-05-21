@@ -27,7 +27,7 @@ type GrpcServer struct {
 
 // Options control optional behaviour of the server.
 type Options struct {
-	IdempotencyStore idempotency.StoreInterface
+	IdempotencyStore  idempotency.StoreInterface
 	IdempotentMethods []string // FullMethod values to enforce idempotency on
 	UnaryInterceptors []grpc.UnaryServerInterceptor
 }

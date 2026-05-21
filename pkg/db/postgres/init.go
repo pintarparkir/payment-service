@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
 	"github.com/uptrace/opentelemetry-go-extra/otelsql"
 	"github.com/uptrace/opentelemetry-go-extra/otelsqlx"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
