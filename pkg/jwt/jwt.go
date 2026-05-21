@@ -1,19 +1,16 @@
-// Package jwt provides minimal RS256 JWT parsing using stdlib only.
+// Package jwt provides minimal RS256 JWT parsing.
 // Signature verification is skipped when pubKeyPEM is empty (dev mode).
 package jwt
 
 import (
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
 // Claims holds the super-app JWT payload fields used by ParkirPintar.
@@ -77,8 +74,7 @@ func Parse(token, pubKeyPEM string) (*Claims, error) {
 	}
 
 	if pubKeyPEM != "" {
-		signingInput := parts[0] + "." + parts[1]
-		if err := verifyRS256(signingInput, parts[2], pubKeyPEM); err != nil {
+		if err := verifyRS256(token, pubKeyPEM); err != nil {
 			return nil, err
 		}
 	}
@@ -86,35 +82,22 @@ func Parse(token, pubKeyPEM string) (*Claims, error) {
 	return &claims, nil
 }
 
-func verifyRS256(signingInput, sigB64, pubKeyPEM string) error {
-	block, _ := pem.Decode([]byte(pubKeyPEM))
-	if block == nil {
-		return fmt.Errorf("%w: invalid PEM", ErrSignature)
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+func verifyRS256(tokenString, pubKeyPEM string) error {
+	rsaPub, err := jwtlib.ParseRSAPublicKeyFromPEM([]byte(pubKeyPEM))
 	if err != nil {
 		return fmt.Errorf("%w: parse key: %v", ErrSignature, err)
 	}
 
-	rsaPub, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return fmt.Errorf("%w: not RSA", ErrSignature)
-	}
-
-	sig, err := base64.RawURLEncoding.DecodeString(sigB64)
+	parsed, err := jwtlib.Parse(tokenString, func(token *jwtlib.Token) (any, error) {
+		if token.Method.Alg() != expectedAlg {
+			return nil, fmt.Errorf("%w: got %q, want %q", ErrUnsupported, token.Method.Alg(), expectedAlg)
+		}
+		return rsaPub, nil
+	}, jwtlib.WithValidMethods([]string{expectedAlg}), jwtlib.WithoutClaimsValidation())
 	if err != nil {
-		return fmt.Errorf("%w: decode sig", ErrSignature)
+		return ErrSignature
 	}
-
-	h := sha256.Sum256([]byte(signingInput))
-	// RFC 7518 §3.3 mandates RSASSA-PKCS1-v1_5 for `alg: RS256`. The
-	// Bleichenbacher attack only applies to PKCS1v15 *encryption* — signature
-	// verification is unaffected. Algorithm is locked to RS256 above so
-	// alg-confusion attacks (e.g. `alg: none`, `alg: HS256`) are rejected
-	// before we reach this point. Algorithm choice is dictated by the upstream
-	// super-app JWT issuer and cannot be changed unilaterally. NOSONAR
-	if err := rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, h[:], sig); err != nil { //nolint:gosec // NOSONAR
+	if parsed == nil || !parsed.Valid {
 		return ErrSignature
 	}
 
