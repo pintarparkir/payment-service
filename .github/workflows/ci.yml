@@ -124,6 +124,5 @@ jobs:
           context: .
           push: false
           tags: ${{ github.event.repository.name }}:${{ github.sha }}
-          build-args: SERVICE=payment
           cache-from: type=gha
           cache-to: type=gha,mode=max
