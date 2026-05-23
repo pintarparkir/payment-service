@@ -5,18 +5,17 @@ import (
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
-// Subscriber consumes from a durable queue bound to the topic exchange.
-// One Subscriber owns one queue; the caller maps routing keys → handlers.
 type Subscriber struct {
 	conn  *amqp.Connection
 	ch    *amqp.Channel
 	queue string
 }
 
-// NewSubscriber dials AMQP, declares the queue, binds it to the given routing
-// keys on the exchange, and returns a subscriber ready to Consume.
 func NewSubscriber(amqpURL, exchange, queue string, routingKeys []string) (*Subscriber, error) {
 	conn, err := amqp.Dial(amqpURL)
 	if err != nil {
@@ -52,12 +51,8 @@ func NewSubscriber(amqpURL, exchange, queue string, routingKeys []string) (*Subs
 	return &Subscriber{conn: conn, ch: ch, queue: queue}, nil
 }
 
-// Handler processes one delivery. Return nil → ACK; non-nil → NACK with requeue.
 type Handler func(ctx context.Context, routingKey string, body []byte) error
 
-// Consume blocks until ctx is cancelled. Each delivery is dispatched to handler.
-//   - nil err  → Ack
-//   - non-nil  → NACK with requeue=true (RabbitMQ requeues with exponential backoff)
 func (s *Subscriber) Consume(ctx context.Context, handler Handler) error {
 	deliveries, err := s.ch.Consume(s.queue, "", false, false, false, false, nil)
 	if err != nil {
@@ -71,10 +66,19 @@ func (s *Subscriber) Consume(ctx context.Context, handler Handler) error {
 			if !ok {
 				return fmt.Errorf("delivery channel closed")
 			}
-			if err := handler(ctx, d.RoutingKey, d.Body); err != nil {
-				_ = d.Nack(false, true) // requeue
+			msgCtx := otel.GetTextMapPropagator().Extract(ctx, &amqpHeaderCarrier{d.Headers})
+			msgCtx, span := otel.Tracer("rabbit").Start(msgCtx, "consume "+d.RoutingKey,
+				trace.WithSpanKind(trace.SpanKindConsumer),
+			)
+
+			if err := handler(msgCtx, d.RoutingKey, d.Body); err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				span.End()
+				_ = d.Nack(false, true)
 				continue
 			}
+			span.End()
 			_ = d.Ack(false)
 		}
 	}

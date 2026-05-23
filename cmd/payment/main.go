@@ -25,6 +25,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	pmtgrpc "github.com/farid/payment-service/internal/payment/handler/grpc"
 	pmthttp "github.com/farid/payment-service/internal/payment/handler/http"
@@ -124,6 +125,7 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
+	router.Use(otelgin.Middleware(cfg.AppName))
 	router.Use(gin.Recovery(), cors.Default())
 	router.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 	pmthttp.RegisterPaymentHandler(router.Group("/v1"), uc, cfg.SuperAppJWTPubKey, cfg.MidtransWebhookSecret, limiter)

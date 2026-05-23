@@ -1,6 +1,3 @@
-// Package rabbit provides a minimal AMQP publisher used by the outbox worker.
-// Topology declaration (exchange) happens once on connect; per-call Publish is
-// a thin wrapper that propagates trace context via headers.
 package rabbit
 
 import (
@@ -8,6 +5,8 @@ import (
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Publisher struct {
@@ -16,7 +15,6 @@ type Publisher struct {
 	exchange string
 }
 
-// NewPublisher dials AMQP, declares the topic exchange, returns a publisher.
 func NewPublisher(amqpURL, exchange string) (*Publisher, error) {
 	conn, err := amqp.Dial(amqpURL)
 	if err != nil {
@@ -35,12 +33,19 @@ func NewPublisher(amqpURL, exchange string) (*Publisher, error) {
 	return &Publisher{conn: conn, ch: ch, exchange: exchange}, nil
 }
 
-// Publish sends a single message with the given routing key + body (JSON encoded).
-// Persistent delivery mode (2) so messages survive broker restart.
 func (p *Publisher) Publish(ctx context.Context, routingKey string, body []byte) error {
+	ctx, span := otel.Tracer("rabbit").Start(ctx, "publish "+routingKey,
+		trace.WithSpanKind(trace.SpanKindProducer),
+	)
+	defer span.End()
+
+	headers := make(amqp.Table)
+	otel.GetTextMapPropagator().Inject(ctx, &amqpHeaderCarrier{headers})
+
 	return p.ch.PublishWithContext(ctx, p.exchange, routingKey, false, false, amqp.Publishing{
 		ContentType:  "application/json",
 		DeliveryMode: amqp.Persistent,
+		Headers:      headers,
 		Body:         body,
 	})
 }
