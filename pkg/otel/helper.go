@@ -1,4 +1,3 @@
-// Package otel provides OpenTelemetry tracing and metrics helpers.
 package otel
 
 import (
@@ -6,12 +5,20 @@ import (
 	"time"
 )
 
-// EndAPM flushes pending spans and shuts down the provider gracefully.
 func (o *OpenTelemetry) EndAPM() error {
-	if o == nil || o.tp == nil {
+	if o == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return o.tp.Shutdown(ctx)
+
+	if o.mp != nil {
+		if err := o.mp.Shutdown(ctx); err != nil {
+			return err
+		}
+	}
+	if o.tp != nil {
+		return o.tp.Shutdown(ctx)
+	}
+	return nil
 }
