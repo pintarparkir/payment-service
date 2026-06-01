@@ -33,7 +33,7 @@ func (u *paymentUsecase) CreateQrisIntent(ctx context.Context, invoiceID string,
 		return nil, err
 	}
 
-	// Call Midtrans /charge.
+	// Call Midtrans /snap/v1/transactions.
 	res, err := u.midtrans.Charge(ctx, invoiceID, amountIDR)
 	if err != nil {
 		return nil, &apperror.AppError{Code: "UPSTREAM_DOWN", Message: "midtrans charge failed", Cause: err}
@@ -62,6 +62,7 @@ func (u *paymentUsecase) CreateQrisIntent(ctx context.Context, invoiceID string,
 				return &QrisIntent{
 					PaymentID:   found.ID,
 					QrisPayload: res.QrisPayload,
+					RedirectURL: res.RedirectURL, // Include SNAP redirect_url even on replay
 					PgReference: found.PgReference,
 					ExpiresAt:   res.ExpiresAt,
 				}, nil
@@ -73,6 +74,7 @@ func (u *paymentUsecase) CreateQrisIntent(ctx context.Context, invoiceID string,
 	return &QrisIntent{
 		PaymentID:   created.ID,
 		QrisPayload: res.QrisPayload,
+		RedirectURL: res.RedirectURL, // Include SNAP redirect URL
 		PgReference: created.PgReference,
 		ExpiresAt:   res.ExpiresAt,
 	}, nil

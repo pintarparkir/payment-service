@@ -28,6 +28,7 @@ type PaymentUsecase interface {
 type QrisIntent struct {
 	PaymentID   string
 	QrisPayload string
+	RedirectURL string // SNAP redirect URL for checkout
 	PgReference string
 	ExpiresAt   time.Time
 }

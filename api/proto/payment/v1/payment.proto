@@ -35,10 +35,11 @@ message CreateQrisIntentRequest {
   int64  amount_idr = 2;  // caller-supplied; future: payment-service fetches from billing automatically
 }
 message QrisIntent {
-  string payment_id = 1;
-  string qris_payload = 2;     // EMV-QRIS string
-  string pg_reference = 3;
-  google.protobuf.Timestamp expires_at = 4;
+  string    payment_id  = 1;
+  string    qris_payload = 2;   // EMV-QRIS string (deprecated for SNAP)
+  string    redirect_url = 3;   // SNAP redirect URL for checkout
+  string    pg_reference = 4;
+  google.protobuf.Timestamp expires_at = 5;
 }
 
 message GetPaymentRequest { string id = 1; }

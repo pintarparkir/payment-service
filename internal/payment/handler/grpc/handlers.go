@@ -20,6 +20,7 @@ func (s *Server) CreateQrisIntent(ctx context.Context, req *paymentv1.CreateQris
 	return &paymentv1.QrisIntent{
 		PaymentId:   out.PaymentID,
 		QrisPayload: out.QrisPayload,
+		RedirectUrl: out.RedirectURL, // Include SNAP redirect URL
 		PgReference: out.PgReference,
 		ExpiresAt:   timestamppb.New(out.ExpiresAt),
 	}, nil
