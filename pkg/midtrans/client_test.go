@@ -41,15 +41,14 @@ func TestCircuitBreakerOpensAfter5Failures(t *testing.T) {
 
 func TestCircuitBreakerAllowsWhenServerHealthy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{
-			"status_code":"201",
-			"status_message":"Success, QRIS transaction is created",
-			"transaction_id":"txn-123",
+			"status_code":"200",
+			"status_message":"Success",
 			"order_id":"order-1",
 			"gross_amount":"10000",
-			"qr_string":"00020101021226680022",
-			"expiry_time":"2026-05-21 10:15:00"
+			"token":"SNAP-TOKEN-123",
+			"redirect_url":"https://app.midtrans.com/snap/v1/transactions/order-1/pay"
 		}`))
 	}))
 	defer srv.Close()
@@ -59,6 +58,7 @@ func TestCircuitBreakerAllowsWhenServerHealthy(t *testing.T) {
 
 	result, err := client.Charge(ctx, "order-1", 10000)
 	require.NoError(t, err)
-	assert.Equal(t, "txn-123", result.TransactionID)
-	assert.Equal(t, "00020101021226680022", result.QrisPayload)
+	assert.Equal(t, "order-1", result.TransactionID)
+	assert.Equal(t, "SNAP-TOKEN-123", result.SnapToken)
+	assert.Equal(t, "https://app.midtrans.com/snap/v1/transactions/order-1/pay", result.RedirectURL)
 }
