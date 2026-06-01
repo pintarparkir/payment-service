@@ -71,11 +71,12 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	cache := pkgRedis.InitConnection(cfg.RedisDB, cfg.RedisHost, cfg.RedisPort, cfg.RedisPassword, cfg.RedisAppConfig)
-	if pingErr := cache.Ping(ctx); pingErr != nil {
+	redisClient := pkgRedis.NewConnection(cfg.RedisHost, cfg.RedisPort, cfg.RedisPassword)
+	if pingErr := redisClient.Ping(ctx); pingErr != nil {
 		logger.Warn(ctx, "redis ping failed (continuing degraded)",
 			map[string]interface{}{logger.ErrorKey: pingErr.Error()})
 	}
+	cache := redisClient.WithDB(cfg.RedisDB)
 
 	limiter := rate.New(cache)
 

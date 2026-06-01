@@ -265,6 +265,147 @@ Midtrans calls are protected by a circuit breaker. When Midtrans is down, QRIS i
 - **SQL:** All queries parameterized (sqlx prevents injection).
 - **Rate limiting:** QRIS intent endpoint should be rate-limited per driver_id.
 
+## Business Flow Logic
+
+### Payment Flow (QRIS Intent & Webhook)
+
+Payment-service mengelola dua flow utama:
+1. **QRIS Intent Creation** — Driver meminta QR code untuk pembayaran
+2. **Webhook Processing** — Midtrans mengkonfirmasi status pembayaran
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Driver as 👤 Driver
+    participant MiniApp as 📱 Mini-App
+    participant PaySvc as Payment Service
+    participant DB as Postgres DB
+    participant Midtrans as Midtrans API
+    participant RMQ as RabbitMQ
+    participant Notif as Notification Service
+    
+    Note over Driver,Notif: Flow 1: Create QRIS Intent
+    
+    Driver->>MiniApp: Tap "Pay Now"
+    MiniApp->>PaySvc: POST /v1/payments/qris-intent<br/>{invoice_id, amount: 14500}
+    
+    activate PaySvc
+    PaySvc->>PaySvc: Validate invoice exists (gRPC to billing)
+    
+    PaySvc->>DB: BEGIN
+    PaySvc->>DB: SELECT * FROM payment WHERE invoice_id = ? AND status = 'PENDING'
+    
+    alt Payment exists (reuse)
+        DB-->>PaySvc: Existing payment
+        PaySvc->>DB: COMMIT
+        PaySvc-->>MiniApp: 200 OK {qr_code, payment_id}
+    else No payment
+        PaySvc->>DB: INSERT INTO payment (<br/>invoice_id, amount, status='PENDING')
+        PaySvc->>DB: COMMIT
+        
+        %% Call Midtrans
+        PaySvc->>Midtrans: POST /charge<br/>{transaction_id, gross_amount}
+        activate Midtrans
+        Midtrans-->>PaySvc: {qr_code, payment_url, expires_at}
+        deactivate Midtrans
+        
+        PaySvc->>DB: UPDATE payment SET pg_reference = ?
+        PaySvc-->>MiniApp: 200 OK {qr_code, payment_url, expires_at}
+    end
+    
+    deactivate PaySvc
+    
+    Note over Driver,Notif: ⏳ Driver scans QRIS via banking app
+    
+    Note over Driver,Notif: Flow 2: Webhook Processing
+    
+    Midtrans->>PaySvc: POST /v1/payments/webhook/midtrans<br/>{order_id, status, signature}
+    
+    activate PaySvc
+    
+    %% HMAC verification
+    PaySvc->>PaySvc: Compute HMAC-SHA512(SERVER_KEY, raw_body)
+    PaySvc->>PaySvc: ConstantTimeCompare(computed, signature)
+    
+    alt Signature invalid
+        PaySvc-->>Midtrans: 401 Unauthorized
+        PaySvc->>PaySvc: Log security alert
+        deactivate PaySvc
+        return
+    end
+    
+    %% Idempotency check
+    PaySvc->>DB: SELECT * FROM payment WHERE pg_reference = ?
+    
+    alt Status terminal (PAID/FAILED)
+        DB-->>PaySvc: Payment already processed
+        PaySvc-->>Midtrans: 200 OK (idempotent)
+        deactivate PaySvc
+        return
+    end
+    
+    %% Update payment status
+    PaySvc->>DB: BEGIN
+    
+    alt status = 'capture' or 'settlement'
+        PaySvc->>DB: UPDATE payment SET<br/>status='PAID', paid_at=NOW()
+        PaySvc->>DB: INSERT INTO outbox_event(<br/>topic='payment.paid.v1',<br/>payload={payment_id, invoice_id, amount})
+    else status = 'deny' or 'cancel' or 'expire'
+        PaySvc->>DB: UPDATE payment SET<br/>status='FAILED', failed_at=NOW()
+        PaySvc->>DB: INSERT INTO outbox_event(<br/>topic='payment.failed.v1')
+    end
+    
+    PaySvc->>DB: COMMIT
+    
+    PaySvc-->>Midtrans: 200 OK
+    deactivate PaySvc
+    
+    %% Async notification
+    par Outbox Publisher
+        PaySvc->>DB: SELECT * FROM outbox_event WHERE published_at IS NULL
+        PaySvc->>RMQ: PUBLISH payment.paid.v1
+        PaySvc->>DB: UPDATE outbox_event SET published_at = NOW()
+        
+        RMQ-->Notif: CONSUME payment.paid.v1
+        Notif->>Notif: Render SMS "Pembayaran berhasil IDR 14,500"
+        Notiv->>SMS Gateway: Send SMS
+    end
+```
+
+### Payment State Machine
+
+```
+┌─────────────┐
+│   PENDING   │ ← Create QRIS Intent
+└──────┬──────┘
+       │
+       ├─── Midtrans webhook: capture/settlement ───▶ ┌─────────────┐
+       │                                               │    PAID     │
+       │                                               └─────────────┘
+       │
+       ├─── Midtrans webhook: deny/cancel/expire ───▶ ┌─────────────┐
+       │                                               │   FAILED    │
+       │                                               └─────────────┘
+       │
+       └─── Manual timeout (24h) ────────────────────▶ ┌─────────────┐
+                                                       │   EXPIRED   │
+                                                       └─────────────┘
+
+States PAID, FAILED, EXPIRED are terminal (immutable).
+```
+
+### Webhook Security
+
+| Step | Implementation |
+|------|----------------|
+| 1. Read raw body | Read `io.ReadAll(request.Body)` before JSON parse |
+| 2. Get signature | `X-Signature` header from Midtrans |
+| 3. Compute HMAC | `HMAC-SHA512(SERVER_KEY, raw_body)` |
+| 4. Compare | `crypto/subtle.ConstantTimeCompare(computed, signature)` |
+| 5. Reject on mismatch | Return 401 + log security alert |
+
+---
+
 ## Related Documentation
 
 - **Architecture Overview:** [`../docs/README.md`](../docs/README.md)
