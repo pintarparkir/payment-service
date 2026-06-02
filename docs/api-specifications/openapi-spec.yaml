@@ -1,0 +1,742 @@
+openapi: 3.0.3
+info:
+  title: ParkirPintar Backend APIs
+  description: |
+    REST API documentation for ParkirPintar smart parking backend.
+
+    ## Authentication
+    All protected endpoints require Bearer JWT token (RS256, issued by super-app) in `Authorization` header.
+
+    ## Idempotency
+    Write endpoints (`POST`, `PUT`) may require `Idempotency-Key` header (UUID) to prevent duplicate operations on retry.
+
+  version: 1.0.0
+  contact:
+    name: Solution Architecture
+    email: architecture@parkirpintar.local
+
+servers:
+  - url: http://localhost:8080
+    description: User Service (dev)
+  - url: http://localhost:8081
+    description: Reservation Service (dev)
+  - url: http://localhost:8083
+    description: Payment Service (dev)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: RS256 JWT issued by Super-App
+
+  schemas:
+    # Common models
+    UUID:
+      type: string
+      format: uuid
+      example: "01JVXXXXXXXXXXXXXX"
+
+    DateTime:
+      type: string
+      format: date-time
+      example: "2024-06-01T10:00:00Z"
+
+    MoneyIDR:
+      type: integer
+      minimum: 0
+      example: 14500
+
+    # Error responses
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          enum: [BAD_REQUEST, NOT_FOUND, CONFLICT, UNPROCESSABLE_ENTITY, INTERNAL_SERVER_ERROR, SIGNATURE_INVALID]
+          example: BAD_REQUEST
+        message:
+          type: string
+          example: "validation failed"
+
+    # User Service models
+    UserProfile:
+      type: object
+      required:
+        - id
+        - external_user_id
+        - full_name
+        - phone_e164
+        - status
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        external_user_id:
+          type: string
+          example: "user-abc-123"
+        full_name:
+          type: string
+          maxLength: 100
+          example: "Budi Santoso"
+        phone_e164:
+          type: string
+          format: phone-number
+          example: "+6281234567890"
+        email:
+          type: string
+          format: email
+          example: "budi@example.com"
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+          example: "ACTIVE"
+        version:
+          type: integer
+          minimum: 1
+          example: 1
+        created_at: { $ref: "#/components/schemas/DateTime" }
+        updated_at: { $ref: "#/components/schemas/DateTime" }
+
+    Vehicle:
+      type: object
+      required:
+        - id
+        - nopol
+        - vehicle_type
+        - is_default
+        - created_at
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        nopol:
+          type: string
+          pattern: "^[A-Z0-9]{1,4}\s?[A-Z0-9]{1,4}$"
+          example: "B 1234 ABC"
+        vehicle_type:
+          type: string
+          enum: [CAR, MOTORCYCLE]
+        is_default:
+          type: boolean
+        created_at: { $ref: "#/components/schemas/DateTime" }
+
+    RegisterVehicleRequest:
+      type: object
+      required:
+        - nopol
+        - vehicle_type
+      properties:
+        nopol: { $ref: "#/Vehicle/properties/nopol" }
+        vehicle_type: { $ref: "#/Vehicle/properties/vehicle_type" }
+        is_default:
+          type: boolean
+          default: false
+          description: If true, unsets any previous default vehicle for this driver
+
+    UpdateProfileRequest:
+      type: object
+      required:
+        - full_name
+        - expected_version
+      properties:
+        full_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        expected_version:
+          type: integer
+          minimum: 1
+          description: Optimistic locking version; must match current DB value
+
+    # Reservation Service models
+    SpotAvailability:
+      type: object
+      properties:
+        available_count:
+          type: integer
+          minimum: 0
+          example: 42
+        by_floor:
+          type: array
+          items:
+            type: object
+            properties:
+              floor:
+                type: string
+                example: "F2"
+              count:
+                type: integer
+                minimum: 0
+                example: 20
+
+    CreateReservationRequest:
+      type: object
+      required:
+        - vehicle_type
+        - mode
+      properties:
+        vehicle_type:
+          type: string
+          enum: [CAR, MOTORCYCLE]
+        mode:
+          type: string
+          enum: [ONLINE, ONSITE]
+          description: ONLINE = pre-book; ONSITE = walk-in at building
+        preferred_spot_id:
+          type: string
+          nullable: true
+          description: Request a specific spot UUID; system assigns if empty
+        hold_duration_minutes:
+          type: integer
+          minimum: 15
+          maximum: 120
+          default: 60
+
+    Reservation:
+      type: object
+      required:
+        - id
+        - driver_id
+        - spot_id
+        - vehicle_type
+        - state
+        - hold_start
+        - hold_end
+        - version
+        - created_at
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        spot_id:
+          type: string
+          example: "F2-C-014"
+        vehicle_type: { $ref: "#/reservation/properties/vehicle_type" }
+        state:
+          type: string
+          enum: [PENDING, CONFIRMED, ACTIVE, COMPLETED, CANCELLED, EXPIRED]
+        hold_start: { $ref: "#/components/schemas/DateTime" }
+        hold_end: { $ref: "#/components/schemas/DateTime" }
+        confirmed_at: { $ref: "#/components/schemas/DateTime" }
+        checked_in_at: { $ref: "#/components/schemas/DateTime" }
+        checked_out_at: { $ref: "#/components/schemas/DateTime" }
+        cancelled_at: { $ref: "#/components/schemas/DateTime" }
+        expired_at: { $ref: "#/components/schemas/DateTime" }
+        version: { $ref: "#/UserProfile/properties/version" }
+        created_at: { $ref: "#/components/schemas/DateTime" }
+        cancel_reason:
+          type: string
+          nullable: true
+
+    CheckInRequest:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          format: float
+          minimum: -90
+          maximum: 90
+          example: -6.2088
+        longitude:
+          type: number
+          format: float
+          minimum: -180
+          maximum: 180
+          example: 106.8456
+        gps_unavailable:
+          type: boolean
+          default: false
+          description: Emergency fallback flag to bypass geofence check
+
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+          example: "Changed plans"
+
+    # Payment Service models
+    QRISIntentRequest:
+      type: object
+      required:
+        - invoice_id
+        - amount_idr
+      properties:
+        invoice_id:
+          type: string
+          example: "INV-2026-0001"
+        amount_idr: { $ref: "#/MoneyIDR" }
+
+    QRISIntentResponse:
+      type: object
+      required:
+        - payment_id
+        - qris_payload
+        - expires_at
+      properties:
+        payment_id: { $ref: "#/components/schemas/UUID" }
+        qris_payload:
+          type: string
+          description: Base64-encoded QRIS image payload
+          minLength: 500
+        pg_reference:
+          type: string
+          description: Midtrans transaction reference (stub in dev)
+          example: "mid-stub-ref-abc123"
+        expires_at: { $ref: "#/components/schemas/DateTime" }
+
+    Payment:
+      type: object
+      required:
+        - id
+        - invoice_id
+        - method
+        - status
+        - amount_idr
+        - created_at
+      properties:
+        id: { $ref: "#/components/schemas/UUID" }
+        invoice_id:
+          type: string
+        method:
+          type: string
+          enum: [QRIS]
+        status:
+          type: string
+          enum: [PENDING, PAID, FAILED, EXPIRED]
+        pg_reference:
+          type: string
+          nullable: true
+        amount_idr: { $ref: "#/MoneyIDR" }
+        paid_at: { $ref: "#/components/schemas/DateTime" }
+        failure_reason:
+          type: string
+          nullable: true
+
+tags:
+  - name: User Service
+    description: User profile and vehicle management (port 8080)
+  - name: Reservation Service
+    description: Parking spot reservations and lifecycle (port 8081)
+  - name: Payment Service
+    description: QRIS payments and webhooks (port 8083)
+
+paths:
+  # ===== User Service Endpoints =====
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: [User Service]
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /v1/me:
+    get:
+      summary: Get authenticated user's profile
+      operationId: getMyProfile
+      tags: [User Service]
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '401':
+          description: Unauthorized (invalid or missing JWT)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    put:
+      summary: Update profile (name, email)
+      operationId: updateMyProfile
+      tags: [User Service]
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Version conflict (optimistic lock failed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/me/vehicles:
+    get:
+      summary: List driver's vehicles
+      operationId: listMyVehicles
+      tags: [User Service]
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Vehicles listed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vehicles:
+                    type: array
+                    items: { $ref: '#/components/schemas/Vehicle' }
+
+    post:
+      summary: Register new vehicle
+      operationId: registerVehicle
+      tags: [User Service]
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterVehicleRequest' }
+      responses:
+        '201':
+          description: Vehicle created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ===== Reservation Service Endpoints =====
+  /v1/availability:
+    get:
+      summary: Get available spots by vehicle type
+      operationId: getAvailability
+      tags: [Reservation Service]
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [CAR, MOTORCYCLE]
+          description: Vehicle type filter
+        - name: floor
+          in: query
+          schema:
+            type: string
+            example: F2
+          description: Optional floor filter
+      responses:
+        '200':
+          description: Availability returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SpotAvailability' }
+        '400':
+          description: Invalid vehicle type parameter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/reservations:
+    post:
+      summary: Create new reservation
+      operationId: createReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      headers:
+        Idempotency-Key:
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Unique key to make POST idempotent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReservationRequest' }
+      responses:
+        '201':
+          description: Reservation created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Conflict (no spots available or concurrent reservation attempt)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/reservations/{reservation_id}:
+    get:
+      summary: Get reservation by ID
+      operationId: getReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      responses:
+        '200':
+          description: Reservation found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '404':
+          description: Reservation not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+    post:
+      oneOf:
+        - $ref: '#/paths/~1v1~1reservations~1{reservation_id}~1confirm/post'
+        - $ref: '#/paths/~1v1~1reservations~1{reservation_id}~1cancel/post'
+        - $ref: '#/paths/~1v1~1reservations~1{reservation_id}~1check-in/post'
+        - $ref: '#/paths/~1v1~1reservations~1{reservation_id}~1check-out/post'
+      summary: State transitions for reservation
+      tags: [Reservation Service]
+
+  /v1/reservations/{reservation_id}/confirm:
+    post:
+      summary: Confirm reservation (PENDING/CONFIRMED → CONFIRMED)
+      operationId: confirmReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      responses:
+        '200':
+          description: Confirmed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '422':
+          description: Invalid state transition (e.g., cannot confirm already confirmed)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/reservations/{reservation_id}/cancel:
+    post:
+      summary: Cancel reservation (PENDING/CONFIRMED → CANCELLED)
+      operationId: cancelReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CancelRequest' }
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '400':
+          description: Cannot cancel from current state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/reservations/{reservation_id}/check-in:
+    post:
+      summary: Check-in reservation with GPS validation (CONFIRMED → ACTIVE)
+      operationId: checkInReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckInRequest' }
+      responses:
+        '200':
+          description: Check-in successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '422':
+          description: Outside geofence radius
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/reservations/{reservation_id}/check-out:
+    post:
+      summary: Check-out reservation (ACTIVE → COMPLETED)
+      operationId: checkOutReservation
+      tags: [Reservation Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: reservation_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      responses:
+        '200':
+          description: Check-out successful
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reservation' }
+        '400':
+          description: Not allowed from current state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  # ===== Payment Service Endpoints =====
+  /v1/payments/qris-intent:
+    post:
+      summary: Create QRIS payment intent
+      operationId: createQRISIntent
+      tags: [Payment Service]
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QRISIntentRequest' }
+      responses:
+        '200':
+          description: Intent created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QRISIntentResponse' }
+        '400':
+          description: Invalid invoice_id or amount
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/payments/{payment_id}:
+    get:
+      summary: Get payment status
+      operationId: getPayment
+      tags: [Payment Service]
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/UUID' }
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /v1/payments/webhook/midtrans:
+    post:
+      summary: Midtrans webhook callback
+      operationId: handleMidtransWebhook
+      tags: [Payment Service]
+      description: |
+        Called by Midtrans when payment status changes. **Not** called by mini-app.
+
+        Security: Verify HMAC-SHA512 signature against raw request body before processing business logic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - transaction_status
+                - order_id
+                - gross_amount
+                - signature_key
+              properties:
+                transaction_time:
+                  type: string
+                  format: date-time
+                transaction_status:
+                  type: string
+                  enum: [settlement, capture, deny, expire, cancel]
+                order_id: { $ref: '#/components/schemas/UUID' }
+                gross_amount:
+                  type: string
+                  pattern: "^\\d+\\.\\d{2}$"
+                  example: "14500.00"
+                signature_key:
+                  type: string
+                  description: HMAC-SHA512 signature over concatenated fields
+        headers:
+          X-Signature:
+            required: false
+            schema:
+              type: string
+            description: Alternative HMAC location (if configured)
+      responses:
+        '200':
+          description: Webhook accepted (idempotent on pg_reference)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '401':
+          description: Invalid signature
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }

@@ -1,0 +1,279 @@
+asyncapi: 2.6.0
+info:
+  title: ParkirPintar Event API
+  description: |
+    Domain events published to RabbitMQ exchange `parkirpintar.events`.
+
+    ## Event Delivery
+    - Events are published via outbox pattern (same DB transaction as business state)
+    - Outbox worker polls every 2 seconds and publishes to RabbitMQ
+    - Consumers subscribe to routing keys matching their interests
+    - DLQ (Dead Letter Queue) for permanent failures (JSON parse errors, unknown types)
+
+  version: 1.0.0
+  contact:
+    name: Solution Architecture
+    email: architecture@parkirpintar.local
+
+servers:
+  rabbitmq:
+    url: amqp://localhost:5672
+    protocol: amqp
+    description: RabbitMQ 3.13 broker
+
+channels:
+  reservation-created:
+    address: parkirpintar.events/reservation.created.v1
+    description: Published when a new reservation is created
+    publish:
+      summary: Reservation created event
+      message:
+        name: reservation.created.v1
+        headers:
+          type: object
+          properties:
+            idempotency-key:
+              type: string
+              format: uuid
+        payload:
+          $ref: "#/components/schemas/ReservationCreatedPayload"
+
+  reservation-confirmed:
+    address: parkirpintar.events/reservation.confirmed.v1
+    description: Published when reservation is confirmed
+    publish:
+      summary: Reservation confirmed event
+      message:
+        name: reservation.confirmed.v1
+        payload:
+          $ref: "#/components/schemas/ReservationConfirmedPayload"
+
+  reservation-cancelled:
+    address: parkirpintar.events/reservation.cancelled.v1
+    description: Published when reservation is cancelled
+    publish:
+      summary: Reservation cancelled event
+      message:
+        name: reservation.cancelled.v1
+        payload:
+          $ref: "#/components/schemas/ReservationCancelledPayload"
+
+  reservation-checked-out:
+    address: parkirpintar.events/reservation.checked_out.v1
+    description: Published when reservation is checked out
+    publish:
+      summary: Reservation checked out event
+      message:
+        name: reservation.checked_out.v1
+        payload:
+          $ref: "#/components/schemas/ReservationCheckedOutPayload"
+
+  reservation-expired:
+    address: parkirpintar.events/reservation.expired.v1
+    description: Published when reservation expires (no-show)
+    publish:
+      summary: Reservation expired event
+      message:
+        name: reservation.expired.v1
+        payload:
+          $ref: "#/components/schemas/ReservationExpiredPayload"
+
+  billing-invoice-closed:
+    address: parkirpintar.events/billing.invoice.closed.v1
+    description: Published when invoice is closed
+    publish:
+      summary: Invoice closed event
+      message:
+        name: billing.invoice.closed.v1
+        payload:
+          $ref: "#/components/schemas/InvoiceClosedPayload"
+
+  payment-paid:
+    address: parkirpintar.events/payment.paid.v1
+    description: Published when payment is settled
+    publish:
+      summary: Payment paid event
+      message:
+        name: payment.paid.v1
+        payload:
+          $ref: "#/components/schemas/PaymentPaidPayload"
+
+  payment-failed:
+    address: parkirpintar.events/payment.failed.v1
+    description: Published when payment fails
+    publish:
+      summary: Payment failed event
+      message:
+        name: payment.failed.v1
+        payload:
+          $ref: "#/components/schemas/PaymentFailedPayload"
+
+components:
+  schemas:
+    # Common fields
+    UUID:
+      type: string
+      format: uuid
+      example: "01JVXXXXXXXXXXXXXX"
+
+    DateTime:
+      type: string
+      format: date-time
+      example: "2024-06-01T10:00:00Z"
+
+    VehicleType:
+      type: string
+      enum: [CAR, MOTORCYCLE]
+      example: "CAR"
+
+    # Event payloads
+    ReservationCreatedPayload:
+      type: object
+      required:
+        - reservation_id
+        - driver_id
+        - spot_id
+        - vehicle_type
+        - hold_end
+      properties:
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        spot_id:
+          type: string
+          example: "F2-C-014"
+        vehicle_type: { $ref: "#/components/schemas/VehicleType" }
+        hold_end: { $ref: "#/components/schemas/DateTime" }
+        created_at: { $ref: "#/components/schemas/DateTime" }
+
+    ReservationConfirmedPayload:
+      type: object
+      required:
+        - reservation_id
+        - driver_id
+        - spot_id
+        - hold_end
+        - confirmed_at
+      properties:
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        spot_id:
+          type: string
+          example: "F2-C-014"
+        hold_end: { $ref: "#/components/schemas/DateTime" }
+        confirmed_at: { $ref: "#/components/schemas/DateTime" }
+
+    ReservationCancelledPayload:
+      type: object
+      required:
+        - reservation_id
+        - driver_id
+        - reason
+        - cancelled_at
+      properties:
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        reason:
+          type: string
+          nullable: true
+          example: "Changed plans"
+        cancelled_at: { $ref: "#/components/schemas/DateTime" }
+
+    ReservationCheckedOutPayload:
+      type: object
+      required:
+        - reservation_id
+        - driver_id
+        - checked_in_at
+        - checked_out_at
+      properties:
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        checked_in_at: { $ref: "#/components/schemas/DateTime" }
+        checked_out_at: { $ref: "#/components/schemas/DateTime" }
+
+    ReservationExpiredPayload:
+      type: object
+      required:
+        - reservation_id
+        - driver_id
+        - expired_at
+      properties:
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        expired_at: { $ref: "#/components/schemas/DateTime" }
+
+    InvoiceClosedPayload:
+      type: object
+      required:
+        - invoice_id
+        - reservation_id
+        - driver_id
+        - total_idr
+        - closed_at
+      properties:
+        invoice_id: { $ref: "#/components/schemas/UUID" }
+        reservation_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        total_idr:
+          type: integer
+          minimum: 0
+          example: 14500
+        closed_at: { $ref: "#/components/schemas/DateTime" }
+
+    PaymentPaidPayload:
+      type: object
+      required:
+        - payment_id
+        - invoice_id
+        - driver_id
+        - amount_idr
+        - paid_at
+      properties:
+        payment_id: { $ref: "#/components/schemas/UUID" }
+        invoice_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        amount_idr:
+          type: integer
+          minimum: 0
+          example: 14500
+        paid_at: { $ref: "#/components/schemas/DateTime" }
+
+    PaymentFailedPayload:
+      type: object
+      required:
+        - payment_id
+        - invoice_id
+        - driver_id
+        - reason
+      properties:
+        payment_id: { $ref: "#/components/schemas/UUID" }
+        invoice_id: { $ref: "#/components/schemas/UUID" }
+        driver_id: { $ref: "#/components/schemas/UUID" }
+        reason:
+          type: string
+          example: "Payment expired"
+
+  channels:
+    # Consumer subscriptions
+    notification-consumer:
+      address: parkirpintar.events
+      subscribe:
+        summary: Notification service consumes all domain events
+        message:
+          oneOf:
+            - $ref: "#/components/schemas/ReservationCreatedPayload"
+            - $ref: "#/components/schemas/ReservationConfirmedPayload"
+            - $ref: "#/components/schemas/ReservationCancelledPayload"
+            - $ref: "#/components/schemas/ReservationCheckedOutPayload"
+            - $ref: "#/components/schemas/ReservationExpiredPayload"
+            - $ref: "#/components/schemas/InvoiceClosedPayload"
+            - $ref: "#/components/schemas/PaymentPaidPayload"
+            - $ref: "#/components/schemas/PaymentFailedPayload"
+
+tags:
+  - name: Reservation Events
+    description: Events related to reservation lifecycle
+  - name: Billing Events
+    description: Events related to invoice and pricing
+  - name: Payment Events
+    description: Events related to payment processing
