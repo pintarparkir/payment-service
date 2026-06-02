@@ -259,15 +259,4 @@ PENDING ──confirm──▶ CONFIRMED ──check-in──▶ ACTIVE ──ch
 
 ---
 
-## 🎯 Success Criteria
 
-- [ ] Geofence validation rejects drivers outside threshold
-- [ ] State transitions are atomic (CONFIRMED → ACTIVE)
-- [ ] Hold time expiry prevents stale check-ins
-- [ ] GPS accuracy degradation handled gracefully (show manual fallback)
-- [ ] Duplicate check-in requests are idempotent (re-idempotent)
-- [ ] Concurrent check-in attempts on same reservation serialized by FOR UPDATE
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_

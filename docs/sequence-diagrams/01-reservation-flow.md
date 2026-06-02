@@ -314,15 +314,4 @@ This flow triggers subsequent flows:
 
 ---
 
-## ✅ Success Criteria
 
-- [x] Reservation created without double-book even under concurrent access
-- [x] Idempotency enforced across all retry attempts
-- [x] Outbox event eventually delivered to billing-service (< 5s)
-- [x] Invoice created for every valid reservation
-- [x] No data loss on service restarts
-- [x] Metrics exposed: `reservations_created_total`, `duplicates_prevented_total`
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_

@@ -309,14 +309,4 @@ func TestPricingEngine(t *testing.T) {
 
 ---
 
-## ✅ Success Criteria
 
-- [ ] Invoice closed with correct total based on pricing rules
-- [ ] Idempotent invoice close (same event delivered twice → same result)
-- [ ] All line items persisted and auditable
-- [ ] Eventually consistent: invoice closed within 5s of check-out
-- [ ] Pricing engine deterministic: same time input → same total every run
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_

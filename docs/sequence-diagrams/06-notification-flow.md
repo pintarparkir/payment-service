@@ -332,16 +332,4 @@ func (h *Handler) HandleMessage(delivery amqp.Delivery) error {
 
 ---
 
-## ✅ Success Criteria
 
-- [ ] All event types have corresponding SMS templates
-- [ ] MSISDN resolution uses cache-first, user-service fallback
-- [ ] Transient errors trigger NACK + requeue, permanent errors go to DLQ
-- [ ] SMS gateway failures classified correctly (4xx → permanent, 5xx → transient)
-- [ ] DLQ messages remain until manual replay after root cause fix
-- [ ] No SMS sent for permanent errors (prevents spam)
-- [ ] Metrics exposed: `notifications_sent_total`, `dlq_total`, `cache_hits_total`
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_

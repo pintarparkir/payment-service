@@ -310,16 +310,4 @@ func (wh *WebhookHandler) HandleWebhook(c *gin.Context) {
 
 ---
 
-## ✅ Success Criteria
 
-- [ ] QRIS intent created only once per invoice (idempotent)
-- [ ] Midtrans webhook signature verified before business logic
-- [ ] Webhook replay handled idempotently (same pg_reference, same response)
-- [ ] Payment terminal states (PAID, FAILED) are immutable
-- [ ] Circuit breaker protects Midtrans from cascading failures
-- [ ] Outbox events published for both PAID and FAILED states
-- [ ] SMS receipt sent for successful payments
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_

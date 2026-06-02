@@ -331,16 +331,4 @@ func CalculateNoShowFee(vehicleType string) (int64, int64) {
 
 ---
 
-## ✅ Success Criteria
 
-- [ ] User cancellation blocked on invalid states (ACTIVE, COMPLETED)
-- [ ] No-show worker expires exactly one HOLD_DURATION after hold_end
-- [ ] No-show worker doesn't double-expire same reservation (SKIP LOCKED)
-- [ ] Free cancellation if user cancels early (> 30min before hold expiry)
-- [ ] Cancellation fee applied if within grace period (≤ 30min)
-- [ ] No-show penalty applied correctly (booking fee + penalty)
-- [ ] SMS sent for both user cancellation and no-show expiry
-
----
-
-_Last updated: 2026-06-01 · Owner: Solution Architecture_
