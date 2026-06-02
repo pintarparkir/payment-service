@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/farid/payment-service/pkg/logger"
 	"github.com/farid/payment-service/pkg/midtrans"
 	"github.com/farid/payment-service/pkg/utils"
 )
@@ -57,9 +58,10 @@ func (h *paymentHandler) midtransWebhook(c *gin.Context) {
 	}
 
 	if err := h.uc.HandleWebhook(c.Request.Context(), n); err != nil {
-		// 5xx — Midtrans will retry. Logging happens in the usecase already.
-		utils.Error(c, err)
-		return
+		// Log but still return 200 — Midtrans requires 200 to stop retrying.
+		// NOT_FOUND (unknown order_id) is expected for test notifications.
+		logger.Warn(c.Request.Context(), "webhook processing error (returning 200 to Midtrans)",
+			map[string]interface{}{logger.ErrorKey: err.Error(), "order_id": n.OrderID})
 	}
 	utils.OK(c, gin.H{"status": "ok"}, "webhook accepted")
 }
