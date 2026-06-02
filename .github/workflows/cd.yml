@@ -105,6 +105,7 @@ jobs:
             --memory=512Mi
             --cpu=1
             --timeout=300
+            --use-http2
             --add-cloudsql-instances=pintarparkir:asia-southeast1:parkirpintar-db-dev
             --vpc-connector=projects/pintarparkir/locations/asia-southeast1/connectors/parkirpintar-connector
 

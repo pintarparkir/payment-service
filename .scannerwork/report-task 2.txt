@@ -3,5 +3,5 @@ projectKey=pintarparkir_payment-service
 serverUrl=https://sonarcloud.io
 serverVersion=8.0.0.89056
 dashboardUrl=https://sonarcloud.io/dashboard?id=pintarparkir_payment-service
-ceTaskId=AZ6IIOtvU0wi14JesaIi
-ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZ6IIOtvU0wi14JesaIi
+ceTaskId=AZ6IGJLpU0wi14JesZk4
+ceTaskUrl=https://sonarcloud.io/api/ce/task?id=AZ6IGJLpU0wi14JesZk4

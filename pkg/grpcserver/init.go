@@ -39,7 +39,18 @@ func NewGrpcServer(port string, opt Options) (*GrpcServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen :%s: %w", port, err)
 	}
+	srv := newGrpcSrv(opt)
+	return &GrpcServer{Server: srv, listener: listener, port: port}, nil
+}
 
+// NewGrpcServerNoListen creates a gRPC server without binding a listener.
+// Used for h2c multiplexing where the HTTP server owns the listener.
+func NewGrpcServerNoListen(opt Options) (*GrpcServer, error) {
+	srv := newGrpcSrv(opt)
+	return &GrpcServer{Server: srv}, nil
+}
+
+func newGrpcSrv(opt Options) *grpc.Server {
 	chain := []grpc.UnaryServerInterceptor{
 		recoveryInterceptor(),
 		loggingInterceptor(),
@@ -61,10 +72,8 @@ func NewGrpcServer(port string, opt Options) (*GrpcServer, error) {
 			Timeout:               5 * time.Second,
 		}),
 	)
-
 	healthpb.RegisterHealthServer(srv, health.NewServer())
-
-	return &GrpcServer{Server: srv, listener: listener, port: port}, nil
+	return srv
 }
 
 // Start serves requests until ctx is cancelled.

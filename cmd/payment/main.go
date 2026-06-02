@@ -20,12 +20,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"google.golang.org/grpc"
 
 	pmtgrpc "github.com/farid/payment-service/internal/payment/handler/grpc"
 	pmthttp "github.com/farid/payment-service/internal/payment/handler/http"
@@ -102,24 +106,16 @@ func main() {
 	uc := pmtuc.NewPaymentUsecase(repo, mt)
 
 	// ── gRPC server (s2s — CreateQrisIntent / GetPayment) ───────────────────
-	grpcSrv, err := grpcserver.NewGrpcServer(cfg.GrpcPort, grpcserver.Options{
+	grpcSrv, _ := grpcserver.NewGrpcServerNoListen(grpcserver.Options{
 		IdempotencyStore:  idempotency.NewPostgresStore(db),
 		IdempotentMethods: []string{model.ScopeCreateQrisIntent},
 	})
-	if err != nil {
-		logger.Fatal(ctx, "grpc server init failed", map[string]interface{}{logger.ErrorKey: err.Error()})
-	}
 	pmtgrpc.Register(grpcSrv.Server, uc)
-	go func() {
-		if err := grpcSrv.Start(); err != nil {
-			logger.Fatal(ctx, "grpc serve failed", map[string]interface{}{logger.ErrorKey: err.Error()})
-		}
-	}()
 
 	// ── Background workers ───────────────────────────────────────────────────
 	go worker.NewOutboxPublisher(obRepo, pub).Run(ctx)
 
-	// ── HTTP server ──────────────────────────────────────────────────────────
+	// ── HTTP server (multiplexed gRPC+REST on same port via h2c) ─────────────
 	if cfg.AppEnv == "local" {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -133,13 +129,13 @@ func main() {
 
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.AppPort,
-		Handler:           router,
+		Handler:           h2c.NewHandler(grpcHTTPMux(grpcSrv.Server, router), &http2.Server{}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
-		logger.Info(ctx, fmt.Sprintf("payment HTTP listening on :%s", cfg.AppPort), nil)
+		logger.Info(ctx, fmt.Sprintf("payment-service listening on :%s (gRPC+HTTP)", cfg.AppPort), nil)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal(ctx, "http listen failed", map[string]interface{}{logger.ErrorKey: err.Error()})
+			logger.Fatal(ctx, "listen failed", map[string]interface{}{logger.ErrorKey: err.Error()})
 		}
 	}()
 
@@ -148,11 +144,22 @@ func main() {
 	logger.Info(context.Background(), "shutdown signal received", nil)
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	grpcSrv.Server.GracefulStop()
 	if err := httpSrv.Shutdown(shutCtx); err != nil {
 		logger.Error(context.Background(), "http shutdown error", map[string]interface{}{logger.ErrorKey: err.Error()})
 	}
-	grpcSrv.Shutdown()
 	if err := logger.Sync(); err != nil {
 		fmt.Fprintln(os.Stderr, "logger sync:", err)
 	}
+}
+
+// grpcHTTPMux routes gRPC to grpcServer, everything else to httpHandler.
+func grpcHTTPMux(grpcSrv *grpc.Server, httpHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			grpcSrv.ServeHTTP(w, r)
+			return
+		}
+		httpHandler.ServeHTTP(w, r)
+	})
 }
