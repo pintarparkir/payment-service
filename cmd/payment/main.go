@@ -128,7 +128,7 @@ func main() {
 	router := gin.New()
 	router.Use(otelgin.Middleware(cfg.AppName))
 	router.Use(gin.Recovery(), cors.Default())
-	router.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
+	router.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 	pmthttp.RegisterPaymentHandler(router.Group("/v1"), uc, cfg.SuperAppJWTPubKey, cfg.MidtransWebhookSecret, limiter)
 
 	httpSrv := &http.Server{
