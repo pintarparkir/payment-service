@@ -1,10 +1,10 @@
 # payment-service
 
-[![Security](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=security_rating&token=66ea93348f4a130c2f9af61ca6938a8d5b9b4f9a)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
-[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=reliability_rating&token=66ea93348f4a130c2f9af61ca6938a8d5b9b4f9a)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
-[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=sqale_rating&token=66ea93348f4a130c2f9af61ca6938a8d5b9b4f9a)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
-[![Duplications](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=duplicated_lines_density&token=66ea93348f4a130c2f9af61ca6938a8d5b9b4f9a)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=coverage&token=66ea93348f4a130c2f9af61ca6938a8d5b9b4f9a)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
+[![Security](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=security_rating&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
+[![Reliability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=reliability_rating&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
+[![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=sqale_rating&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
+[![Duplications](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=duplicated_lines_density&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=coverage&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
 
 **Cloud Run:** `https://payment-service-725nddkmwq-as.a.run.app`
 
