@@ -27,8 +27,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 
 	pmtgrpc "github.com/farid/payment-service/internal/payment/handler/grpc"
@@ -127,9 +125,13 @@ func main() {
 	router.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 	pmthttp.RegisterPaymentHandler(router.Group("/v1"), uc, cfg.SuperAppJWTPubKey, cfg.MidtransWebhookSecret, limiter)
 
+	var protos http.Protocols
+	protos.SetHTTP1(true)
+	protos.SetUnencryptedHTTP2(true)
 	httpSrv := &http.Server{
 		Addr:              ":" + cfg.AppPort,
-		Handler:           h2c.NewHandler(grpcHTTPMux(grpcSrv.Server, router), &http2.Server{}),
+		Handler:           grpcHTTPMux(grpcSrv.Server, router),
+		Protocols:         &protos,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
