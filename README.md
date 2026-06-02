@@ -4,7 +4,6 @@
 [![Reliability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=reliability_rating&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
 [![Maintainability](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=sqale_rating&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
 [![Duplications](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=duplicated_lines_density&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=pintarparkir_payment-service&metric=coverage&token=a4676bbb04ddb893b672d1f49c97407fcde80192)](https://sonarcloud.io/summary/new_code?id=pintarparkir_payment-service)
 
 **Cloud Run:** `https://payment-service-725nddkmwq-as.a.run.app`
 
