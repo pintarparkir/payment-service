@@ -18,6 +18,11 @@ import (
 )
 
 func NewOpenTelemetry(endpoint, appName, appEnv string) *OpenTelemetry {
+	if endpoint == "" {
+		log.Println("otel: OTLP_ENDPOINT not set, telemetry disabled")
+		return &OpenTelemetry{}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
