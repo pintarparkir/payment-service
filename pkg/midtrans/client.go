@@ -80,9 +80,9 @@ type customerInfo struct {
 }
 
 type itemDetail struct {
-	Name       string `json:"name"`
-	Price      int64  `json:"price"`
-	Quantity   int    `json:"quantity"`
+	Name        string `json:"name"`
+	Price       int64  `json:"price"`
+	Quantity    int    `json:"quantity"`
 	PaymentType string `json:"payment_type,omitempty"` // "qris" hint
 }
 
@@ -159,9 +159,9 @@ func (c *httpClient) charge(ctx context.Context, orderID string, amountIDR int64
 	}
 
 	return &ChargeResult{
-		SnapToken:   r.Token,          // Can be used for embedded checkout
-		RedirectURL: r.RedirectURL,    // Mini app redirects user here to complete payment
-		TransactionID: r.OrderID,      // Use as pg_reference
+		SnapToken:     r.Token,                          // Can be used for embedded checkout
+		RedirectURL:   r.RedirectURL,                    // Mini app redirects user here to complete payment
+		TransactionID: r.OrderID,                        // Use as pg_reference
 		ExpiresAt:     time.Now().Add(15 * time.Minute), // Default timeout
 	}, nil
 }
@@ -176,8 +176,8 @@ func NewStubClient() Client { return &stubClient{} }
 
 func (s *stubClient) Charge(_ context.Context, orderID string, amountIDR int64) (*ChargeResult, error) {
 	return &ChargeResult{
-		SnapToken:   "STUB-TOKEN-" + orderID,
-		RedirectURL: "https://app.midtrans.com/snap/v1/transactions/" + orderID + "/pay",
+		SnapToken:     "STUB-TOKEN-" + orderID,
+		RedirectURL:   "https://app.midtrans.com/snap/v1/transactions/" + orderID + "/pay",
 		TransactionID: "STUB-" + orderID,
 		QrisPayload:   fmt.Sprintf("00020101021234567890%010d5802ID5912PARKIRPINTAR6013JAKARTA62150x%010d6304", amountIDR, amountIDR),
 		ExpiresAt:     time.Now().Add(15 * time.Minute),
